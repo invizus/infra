@@ -1,0 +1,80 @@
+---
+
+- name: apt key
+  ansible.builtin.apt_key:
+    url: https://pkgs.k8s.io/core:/stable:/v1.28/deb/Release.key
+    keyring: /etc/apt/keyrings/kubernetes-apt-keyring.gpg
+  environment: "{{ proxy_env | default({}) }}"
+  tags: k8s
+
+- name: k8s apt repository
+  ansible.builtin.apt_repository:
+    repo: "deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/v1.28/deb/ /"
+  become: yes
+  tags: k8s
+
+- name: install k8s packages
+  ansible.builtin.apt:
+    pkg:
+      - kubelet
+      - kubeadm
+      - kubectl
+    update_cache: yes
+  become: yes
+  tags: k8s
+
+- name: Prevent k8s from being upgraded
+  ansible.builtin.dpkg_selections:
+    name: "{{ item }}"
+    selection: hold
+  with_items:
+    - kubelet
+    - kubeadm
+    - kubectl
+  become: yes
+  tags: k8s
+
+# this does not work as it does not add modules to config files
+# so does not load after restart
+- name: modprobe br_netfilter
+  #community.general.modprobe:
+  modprobe:
+    name: br_netfilter
+    state: present
+  become: yes
+  tags: k8s
+
+# added workaround
+- name: module br_netfiler conf file
+  ansible.builtin.lineinfile:
+    path: /etc/modules-load.d/k8s.conf
+    create: true
+    line: br_netfilter
+  become: yes
+  tags: k8s
+
+- name: disable swap
+  ansible.builtin.command:
+    cmd: swapoff -a
+  become: yes
+  tags: k8s
+
+- name: Ensure ip_forwarding enabled
+  sysctl:
+    name: net.ipv4.ip_forward
+    value: 1
+    state: present
+  become: yes
+  tags: k8s
+
+- name: Ensure bridge_nf_call iptables enabled
+  sysctl:
+    name: "{{ item }}"
+    value: 1
+    state: present
+  with_items:
+    - net.bridge.bridge-nf-call-iptables
+    - net.bridge.bridge-nf-call-ip6tables
+  become: yes
+  tags: k8s
+

@@ -1,0 +1,40 @@
+---
+
+- name: mkdir /lib/systemd/system/containerd.service.d/
+  ansible.builtin.file:
+    path: /lib/systemd/system/containerd.service.d/
+    state: directory
+  become: yes
+  tags: k8s, proxy
+
+- name: containerd http-proxy.conf for systemd
+  ansible.builtin.template:
+    src: http-proxy.conf.j2
+    dest: /lib/systemd/system/containerd.service.d/http-proxy.conf
+  become: yes
+  tags: k8s, proxy
+
+- name: daemon-reload
+  ansible.builtin.command:
+    cmd: systemctl daemon-reload
+  become: yes
+  tags: k8s, proxy
+
+- name: restart containerd service
+  ansible.builtin.systemd:
+    name: containerd
+    state: restarted
+  become: yes
+  tags: k8s, containerd
+
+- name: proxy in /etc/environment
+  ansible.builtin.lineinfile:
+    path: /etc/environment
+    line: "{{ item }}"
+  loop:
+    - "HTTP_PROXY={{proxy_env.http_proxy }}"
+    - "HTTPS_PROXY={{proxy_env.http_proxy }}"
+    - "http_proxy={{proxy_env.http_proxy }}"
+    - "https_proxy={{proxy_env.http_proxy }}"
+    - "NO_PROXY={{ NO_PROXY }}"
+  tags: k8s, proxy

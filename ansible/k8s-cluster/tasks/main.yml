@@ -1,0 +1,36 @@
+---
+
+- name: install packages
+  ansible.builtin.apt:
+    pkg:
+      - ca-certificates
+      - curl
+      - apt-transport-https
+      - containerd
+      - gnupg
+      - gnupg2
+      - git
+    update_cache: yes
+  become: yes
+  tags: k8s
+
+- include_tasks: install-k8s.yml
+  tags: k8s
+
+- include_tasks: install-containerd.yml
+  tags: k8s, containerd
+
+- include_tasks: proxy.yml
+  when: proxy_env is defined and proxy_env
+  tags: k8s, proxy
+
+- include_tasks: init.yml
+  when: k8s_kubeadm_init is defined and k8s_kubeadm_init
+  tags: k8s, init
+
+- include_tasks: helm.yml
+  when:
+    - k8s_kubeadm_init is defined and k8s_kubeadm_init
+    - k8s_install_helm is defined and k8s_install_helm
+  tags: k8s, helm
+

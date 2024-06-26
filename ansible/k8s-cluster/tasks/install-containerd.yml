@@ -1,0 +1,71 @@
+---
+- name: containerd remove old packages if present
+  ansible.builtin.apt:
+    pkg:
+      - docker.io
+      - docker-doc
+      - docker-compose
+      - podman-docker
+      - containerd
+      - runc
+    state: absent
+  become: yes
+  tags: k8s, containerd
+
+- name: docker apt key
+  ansible.builtin.apt_key:
+    url: https://download.docker.com/linux/debian/gpg 
+    keyring: /etc/apt/keyrings/docker.gpg
+  environment: "{{ proxy_env | default({}) }}"
+  become: yes
+  tags: k8s, containerd
+
+- name: docker apt repository
+  ansible.builtin.apt_repository:
+    repo: "deb [signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/debian {{ ansible_distribution_release }} stable"
+  become: yes
+  tags: k8s, containerd
+
+- name: containerd install packages
+  ansible.builtin.apt:
+    pkg:
+      - containerd.io
+      - docker-ce-cli
+      - docker-ce
+    update_cache: yes
+  become: yes
+  tags: k8s, containerd
+
+- name: check if containerd is configured
+  ansible.builtin.command:
+    cmd: grep "SystemdCgroup = true" /etc/containerd/config.toml
+  register: containerd_conf
+  ignore_errors: true
+  tags: k8s, containerd
+
+- name: containerd make default config
+  ansible.builtin.shell:
+    cmd: 'containerd config default > /etc/containerd/config.toml'
+  when: "'false' in containerd_conf.stdout_lines or not containerd_conf.stdout_lines or containerd_conf.stdout_lines == []"
+  become: yes
+  tags: k8s, containerd
+  register: result
+
+- name: containerd fix config for kubernetes
+  ansible.builtin.lineinfile:
+    path: /etc/containerd/config.toml
+    regexp: '^(\s*)SystemdCgroup = false'
+    line: '\1SystemdCgroup = true'
+    insertbefore: '^(\s*)SystemdCgroup = false'
+    backrefs: yes
+  when: "'false' in containerd_conf.stdout_lines or not containerd_conf.stdout_lines or containerd_conf.stdout_lines == []"
+  become: yes
+  tags: k8s, containerd
+
+- name: restart containerd service
+  ansible.builtin.systemd:
+    name: containerd
+    state: restarted
+  become: yes
+  tags: k8s, containerd
+

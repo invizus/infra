@@ -1,0 +1,16 @@
+---
+
+- name: Download Helm install script
+  ansible.builtin.get_url:
+    url: "https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3"
+    dest: "/tmp/helm.sh"
+    mode: 0777
+  environment: "{{ proxy_env | default({}) }}"
+  tags: k8s, helm
+
+- name: install Helm
+  ansible.builtin.command:
+    cmd: "bash /tmp/helm.sh"
+  become: yes
+  environment: "{{ proxy_env | default({}) }}"
+  tags: k8s, helm
